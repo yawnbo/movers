@@ -1,0 +1,1 @@
+entry point is at the turbovid embed link and contains the apkey and xxid that is put into the juice link that provides json with juice var that can decrypt the hex contained in data json of the the juice url which is the stream link??
