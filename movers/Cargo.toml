@@ -5,8 +5,12 @@ edition = "2024"
 
 [dependencies]
 scraper = "0.23.1"
-reqwest = {version = "0.12.12", features = ["blocking", "json"] }
+reqwest = {version = "0.12.12", features = [ "json"] }
 serde_json = "1.0"
 fzf-wrapped = "0.1.4"
-regex = "*"
-base64 = "*"
+regex = "1.11.1"
+tokio = { version = "1.44.0", features = ["full"] }
+base64 = "0.22.1"
+flate2 = "1.0"
+toml = "0.8.20"
+serde = { version = "1.0.218", features = ["derive"] }
