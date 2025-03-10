@@ -7,14 +7,21 @@
 // -do i really need the whole movie struct? useful if i end up doing ui but like really?
 // -better variable and function handling because this is a fucking mess
 // -see tother TODO's in the code please
+
+// work list order
+//
+// 1. subtitles - note links can be passed directly to mpv with the format
+//    --sub-files:LINK.srt.gz:LINK2.srt.gz --sub-lang=en
+// 2. clap arg parsing
+// 3. mp4 packing with -d and subtitles
+// 4. episodes and series
+//
 use std::env;
 use std::error::Error;
-use std::process::Command;
-
-mod cflixscraping;
 mod helpers;
 // TODO:
 // mod loadconfig;
+mod cflixscraping;
 mod subtitles;
 
 // struct for series and episodes should also be made but that's an issue for another day.
@@ -56,36 +63,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 return Ok(());
             }
             "search" | "-S" | "--search" => {
-                // hardcoded to the second term and should be changed later
-                if let Some(search_term) = args.iter().nth(2) {
-                    let movie_list: Vec<Movie> = cflixscraping::init_client(search_term).await?;
-                    // TODO:
-                    // probably make a ui rendering but lowkey hard :(
-                    let selected_id = helpers::fzf_results(&movie_list).await?;
-                    println!(
-                        "Found movie: {}",
-                        movie_list[selected_id.parse::<usize>().unwrap()].id
-                    );
-                    let mpegts_url = cflixscraping::get_mpegts(format!(
-                        "https://catflix.su/movie/{}",
-                        movie_list[selected_id.parse::<usize>().unwrap()].id
-                    ))
-                    .await?;
-                    // TODO: Make config parsing so mpv can also be chosen (include a bflix
-                    // searcher too later)
-                    let status = Command::new("iina")
-                        .arg(mpegts_url)
-                        .status()
-                        .expect("Failed to start mpv");
-                    if status.success() {
-                        println!("So was the movie good :)");
-                    } else {
-                        println!("Mpv not happy :(");
+                match helpers::search_and_play(&args).await {
+                    Ok(()) => {
+                        return Ok(());
                     }
-                    return Ok(());
-                } else {
-                    return Err("Missing search term, Ex. movers search <SEARCH>".into());
+                    Err(e) => {
+                        eprint!("Erorr: {}", e);
+                        if let Err(clean_err) = helpers::clean_subtitle_cache().await {
+                            eprint!("Error cleaning subtitle cache: {}", clean_err);
+                        }
+                    }
                 }
+                return Ok(());
             }
             _ => {
                 continue;
