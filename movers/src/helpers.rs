@@ -11,9 +11,13 @@ use crate::subtitles;
 const SUBTITLE_CACHE_DIR: &str = "movers/subtitles/";
 
 pub async fn search_and_play(args: &[String]) -> Result<(), Box<dyn Error>> {
-    let search_term = args.get(2).ok_or("No search term provided")?;
-
-    let movie_list: Vec<Movie> = cflixscraping::init_client(search_term).await?;
+    let mut search_term = String::new();
+    for i in 2..args.iter().len() {
+        search_term.push_str(&args[i]);
+        search_term.push_str(" ");
+    }
+    search_term = search_term.trim().to_string();
+    let movie_list: Vec<Movie> = cflixscraping::init_client(&search_term).await?;
 
     if movie_list.is_empty() {
         return Err("I don't think we have that movie ... no results".into());
