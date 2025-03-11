@@ -55,7 +55,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     for string in args.iter() {
         match string.as_str() {
             "version" | "v" | "-v" | "--version" => {
-                println!("Version 0.0.1 Alpha testing");
+                println!("Version 0.1.2");
                 return Ok(());
             }
             "help" | "-h" | "--help" => {
