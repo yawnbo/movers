@@ -15,9 +15,14 @@ cd movers && cargo build --release
 ```
 ./target/release/movers -S <MOVIE>
 ```
-## IMPORTANT PLEASE READ
----
-If planning to watch with mpv please change line 72 to use mpv instead of iina and it will work just fine, no config system is in place *yet* but eventually probably will be.
 
+# Features
+---
+- Watching movies
+- downloading (planned)
+- Subtitles
+- Series/episodes (planned)
+- other players (iina, planned)
+- config and arg parsing (planned)
 ## Inspo
 Thanks to [Film-central](https://github.com/JDALab/film-central) and [MisaelVM](https://github.com/MisaelVM) for the decryption algo
