@@ -38,11 +38,9 @@ async fn download_subtitle(
 
     let file_path = sub_cache.join(file_name);
 
-    // Download subtitle content
     let response = client.get(download_link).send().await?;
     let content = response.bytes().await?;
 
-    // Write to file using tokio's async file operations
     let mut file = tokio_fs::File::create(&file_path).await?;
     file.write_all(&content).await?;
 

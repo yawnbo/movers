@@ -54,6 +54,7 @@ pub async fn init_client(search: &str) -> Result<Vec<Movie>, Box<dyn Error>> {
 }
 
 pub async fn get_mpegts(catflix_movie_url: String) -> Result<String, Box<dyn Error>> {
+    // something there takes super long... i'm not finding it.....
     let client = Client::new();
 
     let catflix_movie_html_response = client.get(&catflix_movie_url).send().await?.text().await?;

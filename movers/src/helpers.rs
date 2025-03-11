@@ -16,24 +16,26 @@ pub async fn search_and_play(args: &[String]) -> Result<(), Box<dyn Error>> {
     let movie_list: Vec<Movie> = cflixscraping::init_client(search_term).await?;
 
     if movie_list.is_empty() {
-        return Err("No movies found matching the search term".into());
+        return Err("I don't think we have that movie ... no results".into());
     }
 
     let selected_id = fzf_results(&movie_list).await?;
     let selected_id_parsed = selected_id
         .parse::<usize>()
+        // this should literally never happen unless the returned json is terrible but less
+        // unwrapping is good i guess
         .map_err(|_| format!("Invalid selection ID: {}", selected_id))?;
 
-    let selected_movie = movie_list
-        .get(selected_id_parsed)
-        .ok_or_else(|| format!("Selection out of range: {}", selected_id_parsed))?;
+    let selected_movie = movie_list.get(selected_id_parsed).unwrap();
 
-    println!("Found movie: {}", selected_movie.id);
+    println!("Found movie id: {}", selected_movie.id);
 
+    // setup async
     let subtitle_future = subtitles::get_subtitles(selected_movie.imdb_id.clone());
     let mpegts_future =
         cflixscraping::get_mpegts(format!("https://catflix.su/movie/{}", selected_movie.id));
 
+    // wait for both to finish and pipe to mpv
     let (subtitle_arg, mpegts_url) = tokio::join!(subtitle_future, mpegts_future);
     let subtitle_arg = subtitle_arg?;
     let mpegts_url = mpegts_url?;
@@ -43,14 +45,19 @@ pub async fn search_and_play(args: &[String]) -> Result<(), Box<dyn Error>> {
         .arg(mpegts_url)
         .arg(subtitle_arg)
         .status()
-        .map_err(|e| format!("Failed to start mpv: {}", e))?;
+        .map_err(|e| format!("Can't start mpv: {}", e))?;
 
     if status.success() {
-        println!("Movie playback completed successfully");
+        println!("MPV happy, hope you enjoyed the movie! :D");
     } else {
-        eprintln!("MPV exited with error code: {:?}", status.code());
+        eprintln!("MPV not happy: {:?}", status.code());
     }
-
+    // iina-cli returns a status code while playback is still active and as a result subtitles are
+    // cleared early, when using iina either comment out the cleaning of the cache and do it manually
+    // afterwards or just leave it as is
+    //
+    // TODO:
+    // iina support and cache timeout (maybe? i dont have a better idea) while using iina
     clean_subtitle_cache().await?;
 
     Ok(())
@@ -61,7 +68,7 @@ pub async fn clean_subtitle_cache() -> Result<(), Box<dyn Error>> {
         let subtitle_cache = cache_path.join(SUBTITLE_CACHE_DIR);
 
         if subtitle_cache.exists() {
-            // Remove all files in the directory
+            // Remove all files in the directory, there shouldn't be anything left
             let mut entries = fs::read_dir(&subtitle_cache).await?;
             println!("Cleaning subtitle cache directory: {:?}", subtitle_cache);
             while let Some(entry) = entries.next_entry().await? {
@@ -71,16 +78,18 @@ pub async fn clean_subtitle_cache() -> Result<(), Box<dyn Error>> {
                 }
             }
 
-            println!("Subtitle cache cleaned successfully");
+            println!("Cache cleared!");
         } else {
-            println!("No subtitle cache directory found to clean");
+            println!("did you manually clear the cache???");
         }
     } else {
-        println!("Could not determine cache directory location");
+        println!("uh where is the cache...");
     }
 
     Ok(())
 }
+
+// make sure valid json's are returned, this will just error anyway but it's fine
 pub async fn check_json(json: &Value) -> Result<(), Box<dyn Error>> {
     if json.get("success").unwrap() == "false" {
         return Err("Failed to fetch valid json!".into());
@@ -90,6 +99,7 @@ pub async fn check_json(json: &Value) -> Result<(), Box<dyn Error>> {
     }
 }
 
+// decryption with provided keys, i have no clue how this works
 pub async fn decrypt(cyphertext: String, key: String) -> String {
     let decimal_cypher: Vec<u8> = (0..cyphertext.len())
         .step_by(2)
@@ -102,6 +112,7 @@ pub async fn decrypt(cyphertext: String, key: String) -> String {
         .map(|(i, &byte)| (byte ^ key.as_bytes()[i % key.len()]) as char)
         .collect()
 }
+// convert from selected title to id, could probably be neglected with tuples but this works
 pub async fn find_movie_id(
     selection: String,
     movie_list: &Vec<Movie>,
@@ -122,7 +133,8 @@ pub async fn fzf_results(movie_list: &Vec<Movie>) -> Result<String, Box<dyn Erro
     let selection = fzf.output().unwrap();
     return Ok(find_movie_id(selection, &movie_list).await?);
 }
-// helper
+
+// movie collecter this should be edited for episodes and series eventually, shouldn't be too bad
 pub async fn get_movie_details(current_id: &str, movie_details: Value) -> Movie {
     return Movie {
         title: movie_details
