@@ -22,7 +22,7 @@ pub async fn search_and_play(args: &[String]) -> Result<(), Box<dyn Error>> {
     if movie_list.is_empty() {
         return Err("I don't think we have that movie ... no results".into());
     }
-
+    // handle amount of episodes and seasons here
     let selected_id = fzf_results(&movie_list).await?;
     let selected_id_parsed = selected_id
         .parse::<usize>()
@@ -30,7 +30,16 @@ pub async fn search_and_play(args: &[String]) -> Result<(), Box<dyn Error>> {
         // unwrapping is good i guess
         .map_err(|_| format!("Invalid selection ID: {}", selected_id))?;
 
-    let selected_movie = movie_list.get(selected_id_parsed).unwrap();
+    // get this logic working on episodes
+    let selected = movie_list.get(selected_id_parsed).unwrap();
+    // if selected.series {
+    //     let mut fzf = Fzf::default();
+    //     fzf.run().expect("Failed to start fzf");
+    //     for i in 1..selected.seasons.unwrap() + 1 {
+    //         fzf.add_item(i.to_string()).expect("Failed to add items");
+    //     }
+    // }
+    let selected_movie = selected;
 
     println!("Found movie id: {}", selected_movie.id);
 
@@ -95,7 +104,7 @@ pub async fn clean_subtitle_cache() -> Result<(), Box<dyn Error>> {
 
 // make sure valid json's are returned, this will just error anyway but it's fine
 pub async fn check_json(json: &Value) -> Result<(), Box<dyn Error>> {
-    if json.get("success").unwrap() == "false" {
+    if json.get("success").is_none_or(|a| !a.as_bool().unwrap()) {
         return Err("Failed to fetch valid json!".into());
     } else {
         println!("Valid json recieved!");
@@ -139,7 +148,60 @@ pub async fn fzf_results(movie_list: &Vec<Movie>) -> Result<String, Box<dyn Erro
 }
 
 // movie collecter this should be edited for episodes and series eventually, shouldn't be too bad
-pub async fn get_movie_details(current_id: &str, movie_details: Value) -> Movie {
+pub async fn get_movie_details(
+    current_id: &str,
+    movie_details: Value,
+    vidtype: String,
+    imdb_id: String,
+) -> Movie {
+    if vidtype == "tv" {
+        println!("Returning series");
+        return Movie {
+            title: movie_details
+                .get("original_name")
+                .unwrap()
+                .to_string()
+                .trim_matches('"')
+                .to_string(),
+            release_date: movie_details
+                .get("first_air_date")
+                .unwrap()
+                .to_string()
+                .trim_matches('"')
+                .to_string(),
+            tagline: movie_details
+                .get("tagline")
+                .unwrap()
+                .to_string()
+                .trim_matches('"')
+                .to_string(),
+            overview: movie_details
+                .get("overview")
+                .unwrap()
+                .to_string()
+                .trim_matches('"')
+                .to_string(),
+            poster_path: movie_details
+                .get("poster_path")
+                .unwrap()
+                .to_string()
+                .trim_matches('"')
+                .to_string(),
+            average_rating: movie_details
+                .get("vote_average")
+                .unwrap()
+                .to_string()
+                .trim_matches('"')
+                .parse()
+                .unwrap(),
+            id: current_id.to_string(),
+            imdb_id,
+            series: true,
+            // TODO: get this working bitch
+            seasons: None,
+        };
+    }
+    println!("Returning movie");
     return Movie {
         title: movie_details
             .get("original_title")
@@ -185,5 +247,7 @@ pub async fn get_movie_details(current_id: &str, movie_details: Value) -> Movie 
             .to_string()
             .trim_matches('"')
             .to_string(),
+        series: false,
+        seasons: None,
     };
 }

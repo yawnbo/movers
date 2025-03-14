@@ -3,10 +3,14 @@ Very basic and functioning on sticks project that is planned to be worked on, no
 
 # Installation
 Currently only linux and macos are tested and supported as I have no clue how to get it to work on windows but am open for implementing it.
+
+## NOT RECOMMENDED 
+
+Install with cargo (not stable and will crash if a series shows up in list)
 ```
 cargo install movers
 ```
-or from source,  
+or from source (**RECOMMENDED**),  
 1. Clone repo
 ```
 git clone https://github.com/yawnbo/movers.git

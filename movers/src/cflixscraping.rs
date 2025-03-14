@@ -1,3 +1,20 @@
+// NOTE:
+//
+// Episodes look horrible to try and fetch so some notes on how to work on it,
+// load additional data for tvid playert
+// if (main_origin != "" && next_episode_url != "") {
+//   let to = atob(main_origin);
+//   let json = JSON.stringify({
+//     next_episode_url,
+//     LOCALE
+//   });
+//   to = safeBtoa(to + "/" + safeBtoa(json));
+//   main_origin = to;
+// }
+//
+// const sourceUrls = [main_origin, safeBtoa("https://vidlink.pro/tv/" + series_tmdb_id + "/" + def_season + "/" + def_episode),
+// chernobyl 1-1 example, https://vidlink.pro/tv/87108/1/1
+// no clue what to do with this tho
 use crate::Movie;
 use base64::prelude::*;
 use futures::future::join_all;
@@ -10,7 +27,8 @@ use std::error::Error;
 use crate::helpers;
 
 const BASE_URL: &str = "https://catflix.su/";
-const TMDB_API_URL: &str = "https://api.themoviedb.org/3/movie/";
+// remove movie from the end as it can be tv/movie
+const TMDB_API_URL: &str = "https://api.themoviedb.org/3";
 // this is not my key im not leaking sensitive data :)
 const TMDB_API_HEADER: &str = "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiIyOTIzODEzYzIwNWUzZDRjNGY4ZGVhNmFjZTQ2YTMwMiIsIm5iZiI6MTcyMzA1MTM1Mi44MjY2NTEsInN1YiI6IjY2YjNhYzM2YjMwNGY1Nzg1Y2UxODQwYyIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.Nx0oSk9Ts8LurGRrSZk5b-QE172zZ_dCLNT9WJJFLbc";
 
@@ -31,20 +49,57 @@ pub async fn init_client(search: &str) -> Result<Vec<Movie>, Box<dyn Error>> {
         // make prettier prints
         println!("Fetching movie details from tmdb api...");
 
-        let movie_futures = data_array.iter().map(|movie| {
-            let current_id = movie.get("tmdb_id").unwrap().to_string();
-            let tmdb_api_call = format!("{}{}?language=en", TMDB_API_URL, current_id);
-            let client_clone = client.clone();
-            let header_clone = TMDB_API_HEADER.to_string();
+        // TODO:
+        //
+        // currently crashes when a series pops up because it's not handled and tmdb returns
+        // invalid json, instead check the other element in each |movie| to see if it's a
+        // 'movie_id' or 'series_id', if it's series set a bool to true in the movie struct and add
+        // how many epidoes/seasons there are. remember to allow for another 2 fzf calls to choose
+        // the season and episode.
+        let movie_futures = data_array
+            .iter()
+            .map(|movie| {
+                let current_id = movie.get("tmdb_id").unwrap().to_string();
+                let client_clone = client.clone();
+                let vidtype: String;
+                let mut imdb_id: String = "".to_string();
+                if let Some(_) = movie.get("movie_id") {
+                    vidtype = "movie".to_string();
+                } else {
+                    vidtype = "tv".to_string();
+                }
 
-            async move {
-                let movie_details =
-                    get_movie_search(&tmdb_api_call, &header_clone, &client_clone).await;
-                helpers::get_movie_details(&current_id, movie_details).await
-            }
-        });
+                let tmdb_api_call =
+                    format!("{}/{}/{}?language=en", TMDB_API_URL, vidtype, current_id);
 
-        let movie_results = join_all(movie_futures).await;
+                async move {
+                    if vidtype == "tv" {
+                        let call_url = format!("{}/tv/{}/external_ids", TMDB_API_URL, current_id);
+                        let json: Value = client_clone
+                            .get(call_url)
+                            .header("Authorization", TMDB_API_HEADER)
+                            .send()
+                            .await
+                            .unwrap()
+                            .json()
+                            .await
+                            .unwrap();
+                        imdb_id = json
+                            .get("imdb_id")
+                            .map(|id| id.as_str().unwrap().to_string())
+                            .unwrap();
+                        println!("imdb_id: {}", imdb_id);
+                    }
+                    println!("{}", tmdb_api_call);
+                    let movie_details =
+                        get_movie_search(&tmdb_api_call, &TMDB_API_HEADER, &client_clone).await;
+                    println!("{:?}", movie_details);
+                    helpers::get_movie_details(&current_id, movie_details, vidtype, imdb_id).await
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let movie_results = futures::future::join_all(movie_futures).await;
         println!("tmdb api response OK");
 
         return Ok(movie_results);

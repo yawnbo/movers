@@ -9,13 +9,11 @@
 // -see tother TODO's in the code please
 
 // work list order
-//
-// 1. subtitles - note links can be passed directly to mpv with the format
-//    --sub-files:LINK.srt.gz:LINK2.srt.gz --sub-lang=en
-// 2. clap arg parsing
-// 3. mp4 packing with -d and subtitles
-// 4. episodes and series
-//
+// 1. subtitles - DONE
+// 2. episodes and series
+// 3. clap arg parsing
+// 4. mp4 packing with -d and subtitles
+
 use std::env;
 use std::error::Error;
 mod helpers;
@@ -38,6 +36,14 @@ struct Movie {
     average_rating: f64,
     id: String,
     imdb_id: String,
+    series: bool,
+    seasons: Option<Vec<Season>>,
+}
+#[derive(Debug)]
+struct Season {
+    episode_number: i32,
+    episode_name: String,
+    episode_id: String,
 }
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
