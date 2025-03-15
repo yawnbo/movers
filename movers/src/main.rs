@@ -4,13 +4,12 @@
 
 // TODO:
 // -unwraps need to be changed to actual error handling especially in fzf function
-// -do i really need the whole movie struct? useful if i end up doing ui but like really?
 // -better variable and function handling because this is a fucking mess
 // -see tother TODO's in the code please
 
 // work list order
 // 1. subtitles - DONE
-// 2. episodes and series
+// 2. episodes and series - DONE (kinda this code is terrible plz rewrite before arg parsing)
 // 3. clap arg parsing
 // 4. mp4 packing with -d and subtitles
 
@@ -22,9 +21,14 @@ mod helpers;
 mod cflixscraping;
 mod subtitles;
 
-// struct for series and episodes should also be made but that's an issue for another day.
-#[derive(Debug)]
-struct Movie {
+// trait for generic fzf calling
+trait HasTitle {
+    fn get_title(&self) -> String;
+    // same note as get_overview for watch item
+    fn get_overview(&self) -> String;
+}
+//#[derive(Debug)]
+struct WatchItem {
     // NOTE:
     // 90% of this data is not **CURRENTLY** used but i plan to implement it someday (maybe) so i'm
     // leaving this here
@@ -39,12 +43,57 @@ struct Movie {
     series: bool,
     seasons: Option<Vec<Season>>,
 }
-#[derive(Debug)]
-struct Season {
-    episode_number: i32,
-    episode_name: String,
-    episode_id: String,
+impl HasTitle for WatchItem {
+    // needed for generic fzf calling but honestly not incredibly useful
+    fn get_title(&self) -> String {
+        self.title.clone()
+    }
+    // overview is useful for a verbose flag that gives an overview with each fzf selection for
+    // later, not currently used
+    fn get_overview(&self) -> String {
+        self.overview.clone()
+    }
 }
+
+// this should've been done with as a child...................... im in too deep to change too
+// TODO:
+// rewrite everything..
+//#[derive(Debug)]
+struct Season {
+    // option is needed because special seasons appear in tmdb that have no string with them so we
+    // can have a none type.
+    overview: Option<String>,
+    number: usize,
+    title: String,
+    id: String,
+    episode_count: usize,
+    episodes: Option<Vec<Episode>>,
+}
+impl HasTitle for Season {
+    fn get_title(&self) -> String {
+        self.title.clone()
+    }
+    fn get_overview(&self) -> String {
+        self.overview.clone().unwrap_or("".to_string())
+    }
+}
+//#[derive(Debug)]
+struct Episode {
+    overview: String,
+    title: String,
+    number: usize,
+    id: String,
+    imdb_id: String,
+}
+impl HasTitle for Episode {
+    fn get_title(&self) -> String {
+        self.title.clone()
+    }
+    fn get_overview(&self) -> String {
+        self.overview.clone()
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     // TODO:

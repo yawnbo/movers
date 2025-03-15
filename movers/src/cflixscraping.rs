@@ -1,21 +1,3 @@
-// NOTE:
-//
-// Episodes look horrible to try and fetch so some notes on how to work on it,
-// load additional data for tvid playert
-// if (main_origin != "" && next_episode_url != "") {
-//   let to = atob(main_origin);
-//   let json = JSON.stringify({
-//     next_episode_url,
-//     LOCALE
-//   });
-//   to = safeBtoa(to + "/" + safeBtoa(json));
-//   main_origin = to;
-// }
-//
-// const sourceUrls = [main_origin, safeBtoa("https://vidlink.pro/tv/" + series_tmdb_id + "/" + def_season + "/" + def_episode),
-// chernobyl 1-1 example, https://vidlink.pro/tv/87108/1/1
-// no clue what to do with this tho
-use crate::Movie;
 use base64::prelude::*;
 use futures::future::join_all;
 use regex::Regex;
@@ -24,6 +6,9 @@ use scraper::{Html, Selector};
 use serde_json::Value;
 use std::error::Error;
 
+use crate::Episode;
+use crate::Season;
+use crate::WatchItem;
 use crate::helpers;
 
 const BASE_URL: &str = "https://catflix.su/";
@@ -32,7 +17,7 @@ const TMDB_API_URL: &str = "https://api.themoviedb.org/3";
 // this is not my key im not leaking sensitive data :)
 const TMDB_API_HEADER: &str = "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiIyOTIzODEzYzIwNWUzZDRjNGY4ZGVhNmFjZTQ2YTMwMiIsIm5iZiI6MTcyMzA1MTM1Mi44MjY2NTEsInN1YiI6IjY2YjNhYzM2YjMwNGY1Nzg1Y2UxODQwYyIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.Nx0oSk9Ts8LurGRrSZk5b-QE172zZ_dCLNT9WJJFLbc";
 
-pub async fn init_client(search: &str) -> Result<Vec<Movie>, Box<dyn Error>> {
+pub async fn init_client(search: &str) -> Result<Vec<WatchItem>, Box<dyn Error>> {
     let client = Client::new();
     let json_query_url = format!(
         "{}api/autocomplete/?q={}&page=1&route=search&sid=0&context=all",
@@ -46,16 +31,8 @@ pub async fn init_client(search: &str) -> Result<Vec<Movie>, Box<dyn Error>> {
 
     if let Some(data_array) = json_response.get("data").unwrap().as_array() {
         // TODO:
-        // make prettier prints
+        // ugly ass print, make prettier prints please
         println!("Fetching movie details from tmdb api...");
-
-        // TODO:
-        //
-        // currently crashes when a series pops up because it's not handled and tmdb returns
-        // invalid json, instead check the other element in each |movie| to see if it's a
-        // 'movie_id' or 'series_id', if it's series set a bool to true in the movie struct and add
-        // how many epidoes/seasons there are. remember to allow for another 2 fzf calls to choose
-        // the season and episode.
         let movie_futures = data_array
             .iter()
             .map(|movie| {
@@ -73,6 +50,10 @@ pub async fn init_client(search: &str) -> Result<Vec<Movie>, Box<dyn Error>> {
                     format!("{}/{}/{}?language=en", TMDB_API_URL, vidtype, current_id);
 
                 async move {
+                    // i dont actually remember what this was put in here for and I don't feel like
+                    // tracing it so im leaving it here and adding a todo tag
+                    // TODO:
+                    // REWRITE
                     if vidtype == "tv" {
                         let call_url = format!("{}/tv/{}/external_ids", TMDB_API_URL, current_id);
                         let json: Value = client_clone
@@ -88,18 +69,15 @@ pub async fn init_client(search: &str) -> Result<Vec<Movie>, Box<dyn Error>> {
                             .get("imdb_id")
                             .map(|id| id.as_str().unwrap().to_string())
                             .unwrap();
-                        println!("imdb_id: {}", imdb_id);
                     }
-                    println!("{}", tmdb_api_call);
                     let movie_details =
                         get_movie_search(&tmdb_api_call, &TMDB_API_HEADER, &client_clone).await;
-                    println!("{:?}", movie_details);
                     helpers::get_movie_details(&current_id, movie_details, vidtype, imdb_id).await
                 }
             })
             .collect::<Vec<_>>();
 
-        let movie_results = futures::future::join_all(movie_futures).await;
+        let movie_results = join_all(movie_futures).await;
         println!("tmdb api response OK");
 
         return Ok(movie_results);
@@ -117,7 +95,9 @@ pub async fn get_mpegts(catflix_movie_url: String) -> Result<String, Box<dyn Err
     let catflix_movie_document = Html::parse_document(&catflix_movie_html_response);
     let script_selector = Selector::parse("script").expect("Failed to parse selector");
 
-    let re_main_origin = Regex::new(r#"const main_origin\s*=\s*"([^"]*)";"#).unwrap();
+    // upstream decided to encode extra data in their player for playing the next episode and they
+    // mutilate the main origin to do so so it isn't const for episodes but is for movies
+    let re_main_origin = Regex::new(r#"(?:const|let) main_origin\s*=\s*"([^"]*)";"#).unwrap();
     let re_apkey = Regex::new(r#"const apkey\s*=\s*"([^"]*)";"#).unwrap();
     let re_xxid = Regex::new(r#"const xxid\s*=\s*"([^"]*)";"#).unwrap();
 
@@ -217,6 +197,93 @@ pub async fn get_mpegts(catflix_movie_url: String) -> Result<String, Box<dyn Err
     Ok(helpers::decrypt(data_crypted, juice_key).await)
 }
 
+pub async fn populate_episodes(season: &Season, series_id: &String) -> Vec<Episode> {
+    // this is done at series select time which is fine and works but if more speed is ever wanted
+    // this can be done async while waiting for user to select season, downside is there will be
+    // lot's of unneeded requests bcz only one season will be selected and this will fetch all of
+    // them. price to pay for filling it quicker i guess
+    let client = Client::new();
+    let call_url = format!(
+        "{}/tv/{}/season/{}?language=en",
+        TMDB_API_URL, series_id, season.number
+    );
+    let json: Value = client
+        .get(call_url)
+        .header("Authorization", TMDB_API_HEADER)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    if let Some(episodes_array) = json.get("episodes").unwrap().as_array() {
+        // Create a vector of futures
+        let episode_futures: Vec<_> = episodes_array
+            .iter()
+            .map(|episode| {
+                let id = episode.get("id").unwrap().to_string();
+                let title = episode.get("name").unwrap().to_string();
+                let overview = episode
+                    .get("overview")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+                    .to_string();
+                let number = episode
+                    .get("episode_number")
+                    .unwrap()
+                    .to_string()
+                    .parse::<usize>()
+                    .unwrap();
+                let client_clone = client.clone();
+
+                async move {
+                    let imdb_id =
+                        get_imdb_id(&season.number, &number, &client_clone, &series_id).await;
+                    Episode {
+                        overview,
+                        title,
+                        number,
+                        id,
+                        imdb_id,
+                    }
+                }
+            })
+            .collect();
+
+        let episodes = futures::future::join_all(episode_futures).await;
+        return episodes;
+    } else {
+        // ya i should handle this better tbh
+        return Vec::new();
+    }
+}
+
+// needed for subs because imdb id isn't provided by tmdb api on the default call
+async fn get_imdb_id(
+    season_number: &usize,
+    episode_number: &usize,
+    client: &Client,
+    series_id: &String,
+) -> String {
+    let call_url = format!(
+        "{}/tv/{}/season/{}/episode/{}/external_ids",
+        TMDB_API_URL, series_id, season_number, episode_number
+    );
+    println!("call_url: {}", call_url);
+    let json: Value = client
+        .get(call_url)
+        .header("Authorization", TMDB_API_HEADER)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    json.get("imdb_id")
+        .map(|id| id.as_str().unwrap().to_string())
+        .unwrap()
+}
 async fn get_movie_search(call: &str, header: &str, client: &Client) -> Value {
     client
         .get(call)
