@@ -6,7 +6,7 @@ Currently only linux and macos are tested and supported as I have no clue how to
 
 ## NOT RECOMMENDED 
 
-Install with cargo (not stable and will crash if a series shows up in list)
+Install with cargo (less stable most times)
 ```
 cargo install movers
 ```
