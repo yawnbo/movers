@@ -26,35 +26,31 @@ pub async fn search_and_play(args: &[String]) -> Result<(), Box<dyn Error>> {
         return Err("I don't think we have that movie ... no results".into());
     }
     // handle amount of episodes and seasons here
-    let selected_id = fzf_results(&movie_list, false).await?;
-    let selected_id_parsed = selected_id
-        .parse::<usize>()
-        // this should literally never happen unless the returned json is terrible but less
-        // unwrapping is good i guess
-        .map_err(|_| format!("Invalid selection ID: {}", selected_id))?;
+    let selected_id = fzf_results(&movie_list).await?;
 
-    let selected = movie_list.get(selected_id_parsed).unwrap();
+    let selected = movie_list.get(selected_id).unwrap();
     let mut cflix_call = "https://catflix.su".to_string();
+    let selected_episode: &Episode;
+    let selected_season: &Season;
+    let subtitle_future;
     if selected.series {
         // if selection is a series
         let selected_series: &Vec<Season> = selected.seasons.as_ref().unwrap();
-        let season_title = fzf_results(&selected_series, true).await?;
+        let season_index = fzf_results(&selected_series).await?;
+        let selected_season = selected_series.iter().nth(season_index).unwrap();
         // its doable to speculatively fetch the episodes and probably worth it but for
         // now i'll do it jit, but this can be changed if performance is bad after season
         // selection.
-        let selected_season = selected_series
-            .iter()
-            .find(|a| a.get_title() == season_title)
-            .unwrap();
         // maybe put debug/print statements here to show the user the program is even doing
         // anything?
-        let episodes: Vec<Episode> =
-            cflixscraping::populate_episodes(&selected_season, &selected.id).await;
-        let selected_episode_title = fzf_results(&episodes, true).await?;
-        let selected_episode = episodes
-            .iter()
-            .find(|a| a.get_title() == selected_episode_title)
-            .unwrap();
+        let episodes: Vec<Episode> = cflixscraping::populate_episodes(
+            &selected_series.iter().nth(season_index).unwrap(),
+            &selected.id,
+        )
+        .await;
+        let selected_episode_index = fzf_results(&episodes).await?;
+        println!("Selected episode index: {}", selected_episode_index);
+        selected_episode = episodes.iter().nth(selected_episode_index).unwrap();
 
         cflix_call = format!(
             "{}/episode/{}-season-{}-episode-{}/eid-{}",
@@ -65,13 +61,25 @@ pub async fn search_and_play(args: &[String]) -> Result<(), Box<dyn Error>> {
             selected_episode.id
         );
         println!("Episode cflix call: {}", cflix_call);
+
+        subtitle_future = subtitles::get_subtitles(
+            selected.imdb_id.clone(),
+            true,
+            selected_episode.number.to_string(),
+            selected_season.number.to_string(),
+        );
     } else {
         cflix_call = format!("{}/movie/{}", cflix_call, selected.id);
+        subtitle_future = subtitles::get_subtitles(
+            selected.imdb_id.clone(),
+            false,
+            "".to_string(),
+            "".to_string(),
+        );
     }
     println!("Found id: {}", selected.id);
 
     // setup async
-    let subtitle_future = subtitles::get_subtitles(selected.imdb_id.clone());
     let mpegts_future = cflixscraping::get_mpegts(cflix_call);
 
     // wait for both to finish and pipe to mpv
@@ -152,42 +160,36 @@ pub async fn decrypt(cyphertext: String, key: String) -> String {
         .collect()
 }
 // convert from selected title to id, could probably be neglected with tuples but this works
-pub async fn find_movie_id<T: HasTitle>(
-    selection: String,
-    movie_list: &[T],
-) -> Result<String, Box<dyn Error>> {
-    return Ok(movie_list
+pub async fn fzf_results<T: HasTitle>(movie_list: &[T]) -> Result<usize, Box<dyn Error>> {
+    let mut special: bool = false;
+    let readable_string = movie_list
         .iter()
-        .position(|a| a.get_title() == selection)
-        .unwrap()
-        .to_string());
-}
-pub async fn fzf_results<T: HasTitle>(
-    movie_list: &[T],
-    series: bool,
-) -> Result<String, Box<dyn Error>> {
-    // um this readable was supposed to have numbers on it but that made fetching the id again
-    // REALLY annoying because the selection is whatever you put into it so ill sort this out later
-    // TODO:
-    let readable_string;
-    if series {
-        readable_string = movie_list
-            .iter()
-            .map(|item| item.get_title())
-            .collect::<Vec<_>>();
-    } else {
-        readable_string = movie_list.iter().map(|a| a.get_title()).collect();
-    }
+        .enumerate()
+        .map(|(i, item)| {
+            item.get_title();
+            if special | (item.get_title().to_lowercase() == "specials") {
+                special = true;
+                return format!("{}: {}", i, item.get_title());
+            } else {
+                format!("{}: {}, {}", i + 1, item.get_title(), item.get_overview())
+            }
+        })
+        .collect::<Vec<_>>();
     let mut fzf = Fzf::default();
     fzf.run().expect("Failed to start fzf");
     fzf.add_items(readable_string).expect("Failed to add items");
     let selection = fzf.output().unwrap();
-    if !series {
-        return Ok(find_movie_id(selection, &movie_list).await?);
-    } else {
-        // i want to manually convert this if it's a series
-        return Ok(selection);
+
+    let selected_index = selection
+        .split(':')
+        .next()
+        .and_then(|s| s.trim().parse::<usize>().ok())
+        .unwrap_or(0);
+    if !special {
+        return Ok(selected_index - 1);
     }
+    println!("Selected: {}", selected_index);
+    return Ok(selected_index);
 }
 pub async fn get_movie_details(
     current_id: &str,

@@ -26,8 +26,9 @@ trait HasTitle {
     fn get_title(&self) -> String;
     // same note as get_overview for watch item
     fn get_overview(&self) -> String;
+    fn get_id(&self) -> String;
 }
-//#[derive(Debug)]
+#[derive(Debug)]
 struct WatchItem {
     // NOTE:
     // 90% of this data is not **CURRENTLY** used but i plan to implement it someday (maybe) so i'm
@@ -53,12 +54,15 @@ impl HasTitle for WatchItem {
     fn get_overview(&self) -> String {
         self.overview.clone()
     }
+    fn get_id(&self) -> String {
+        self.id.clone()
+    }
 }
 
 // this should've been done with as a child...................... im in too deep to change too
 // TODO:
 // rewrite everything..
-//#[derive(Debug)]
+#[derive(Debug)]
 struct Season {
     // option is needed because special seasons appear in tmdb that have no string with them so we
     // can have a none type.
@@ -76,8 +80,11 @@ impl HasTitle for Season {
     fn get_overview(&self) -> String {
         self.overview.clone().unwrap_or("".to_string())
     }
+    fn get_id(&self) -> String {
+        self.id.clone()
+    }
 }
-//#[derive(Debug)]
+#[derive(Debug)]
 struct Episode {
     overview: String,
     title: String,
@@ -91,6 +98,9 @@ impl HasTitle for Episode {
     }
     fn get_overview(&self) -> String {
         self.overview.clone()
+    }
+    fn get_id(&self) -> String {
+        self.id.clone()
     }
 }
 

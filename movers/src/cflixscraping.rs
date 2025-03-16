@@ -113,7 +113,9 @@ pub async fn get_mpegts(catflix_movie_url: String) -> Result<String, Box<dyn Err
         .map(|m| m.as_str())
         .ok_or("Failed to extract main_origin")?
         .to_string();
-
+    if pre_juice_target_encoded == "" {
+        return Err("main_origin isn't specified on scraped website! Please see above cflix call and choose another source from there, this app currently doesn't support sources apart from the default.\n".into());
+    }
     let embed_api_url = BASE64_STANDARD
         .decode(pre_juice_target_encoded.as_bytes())?
         .iter()

@@ -7,8 +7,7 @@ use std::path::{Path, PathBuf};
 use tokio::fs as tokio_fs;
 use tokio::io::AsyncWriteExt;
 
-const BASE_SUBTITLES_URL: &str =
-    "https://justaproxy.xyz/subsApi.php?version=2&getsubs=simp&imdbid=";
+const BASE_SUBTITLES_URL: &str = "https://justaproxy.xyz/subsApi.php?version=2&getsubs=simp";
 const BASE_SUBTITLES_URL_LANG: &str = "&subkey=eng";
 const BASE_SUBTITLE_CACHE: &str = "movers/subtitles/";
 
@@ -47,7 +46,12 @@ async fn download_subtitle(
     Ok(file_path)
 }
 
-pub async fn get_subtitles(imdb_id: String) -> Result<String, Box<dyn Error>> {
+pub async fn get_subtitles(
+    imdb_id: String,
+    series: bool,
+    episode_num: String,
+    season_num: String,
+) -> Result<String, Box<dyn Error>> {
     let sub_cache = cache_dir()
         .ok_or("Failed to determine cache directory")?
         .join(BASE_SUBTITLE_CACHE);
@@ -55,11 +59,19 @@ pub async fn get_subtitles(imdb_id: String) -> Result<String, Box<dyn Error>> {
     println!("Subtitle cache directory: {:?}", sub_cache);
 
     ensure_directory(&sub_cache).await?;
-
-    let subtitles_url = format!(
-        "{}{}{}",
-        BASE_SUBTITLES_URL, imdb_id, BASE_SUBTITLES_URL_LANG
-    );
+    let subtitles_url: String;
+    if !series {
+        subtitles_url = format!(
+            "{}&imdbid={}{}",
+            BASE_SUBTITLES_URL, imdb_id, BASE_SUBTITLES_URL_LANG
+        );
+    } else {
+        subtitles_url = format!(
+            "{}episode={}&imdbid={}&season={}{}",
+            BASE_SUBTITLES_URL, episode_num, imdb_id, season_num, BASE_SUBTITLES_URL_LANG
+        );
+    }
+    println!("Subtitles URL: {}", subtitles_url);
 
     let client = Client::new();
 
