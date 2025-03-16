@@ -29,8 +29,11 @@ cd movers && cargo build --release
 - Watching movies
 - downloading (planned)
 - Subtitles
-- Series/episodes (planned)
+- Series/episodes
 - other players (iina, planned)
 - config and arg parsing (planned)
+
+#### Todo:
+vidlink/cloudburst/stormproxy scraping (very hard)
 ## Inspo
 Thanks to [Film-central](https://github.com/JDALab/film-central) and [MisaelVM](https://github.com/MisaelVM) for the decryption algo
