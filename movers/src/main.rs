@@ -28,7 +28,7 @@ trait HasTitle {
     fn get_overview(&self) -> String;
     fn get_id(&self) -> String;
 }
-#[derive(Debug)]
+//#[derive(Debug)]
 struct WatchItem {
     // NOTE:
     // 90% of this data is not **CURRENTLY** used but i plan to implement it someday (maybe) so i'm
@@ -62,7 +62,7 @@ impl HasTitle for WatchItem {
 // this should've been done with as a child...................... im in too deep to change too
 // TODO:
 // rewrite everything..
-#[derive(Debug)]
+//#[derive(Debug)]
 struct Season {
     // option is needed because special seasons appear in tmdb that have no string with them so we
     // can have a none type.
@@ -84,12 +84,14 @@ impl HasTitle for Season {
         self.id.clone()
     }
 }
-#[derive(Debug)]
+//#[derive(Debug)]
 struct Episode {
     overview: String,
     title: String,
     number: usize,
     id: String,
+    // i thought this was needed for subtitles so it's here for now but is useless, i'll keep it
+    // here for future use like the others
     imdb_id: String,
 }
 impl HasTitle for Episode {
@@ -114,7 +116,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
         println!("{}", options);
         return Err("No arguments provided".into());
     }
-
+    //TODO:
+    //
+    // This needs to be loaded and options like fzf list format need to be included, ie. "Title *
+    // tagline * release_date * overview" etc. whatever the user wants displayed to recognize what
+    // they want to watch because things with the same name are confusing like severance.
+    //
     //loadconfig::load_config().await?;
 
     for string in args.iter() {
@@ -147,5 +154,5 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
     }
     println!("{}", options);
-    Err("Unknown argument".into())
+    Err("[ERROR] Unknown argument".into())
 }

@@ -31,7 +31,6 @@ pub async fn search_and_play(args: &[String]) -> Result<(), Box<dyn Error>> {
     let selected = movie_list.get(selected_id).unwrap();
     let mut cflix_call = "https://catflix.su".to_string();
     let selected_episode: &Episode;
-    let selected_season: &Season;
     let subtitle_future;
     if selected.series {
         // if selection is a series
@@ -49,7 +48,6 @@ pub async fn search_and_play(args: &[String]) -> Result<(), Box<dyn Error>> {
         )
         .await;
         let selected_episode_index = fzf_results(&episodes).await?;
-        println!("Selected episode index: {}", selected_episode_index);
         selected_episode = episodes.iter().nth(selected_episode_index).unwrap();
 
         cflix_call = format!(
@@ -60,7 +58,7 @@ pub async fn search_and_play(args: &[String]) -> Result<(), Box<dyn Error>> {
             selected_episode.number,
             selected_episode.id
         );
-        println!("Episode cflix call: {}", cflix_call);
+        println!("[INFO] Found indirect episode link: {}", cflix_call);
 
         subtitle_future = subtitles::get_subtitles(
             selected.imdb_id.clone(),
@@ -77,7 +75,7 @@ pub async fn search_and_play(args: &[String]) -> Result<(), Box<dyn Error>> {
             "".to_string(),
         );
     }
-    println!("Found id: {}", selected.id);
+    println!("[INFO] Selected item id: {}", selected.id);
 
     // setup async
     let mpegts_future = cflixscraping::get_mpegts(cflix_call);
@@ -87,17 +85,19 @@ pub async fn search_and_play(args: &[String]) -> Result<(), Box<dyn Error>> {
     let subtitle_arg = subtitle_arg?;
     let mpegts_url = mpegts_url?;
 
-    println!("Starting mpv...");
+    println!("[INFO] Starting MPV");
     let status = Command::new("mpv")
         .arg(mpegts_url)
         .arg(subtitle_arg)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
         .status()
         .map_err(|e| format!("Can't start mpv: {}", e))?;
 
     if status.success() {
-        println!("MPV happy, hope you enjoyed the movie! :D");
+        println!("[SUCCESS] MPV happy, hope you enjoyed the movie! :D");
     } else {
-        eprintln!("MPV not happy: {:?}", status.code());
+        eprintln!("[ERROR] MPV not happy: {:?}", status.code());
     }
     // iina-cli returns a status code while playback is still active and as a result subtitles are
     // cleared early, when using iina either comment out the cleaning of the cache and do it manually
@@ -117,7 +117,10 @@ pub async fn clean_subtitle_cache() -> Result<(), Box<dyn Error>> {
         if subtitle_cache.exists() {
             // Remove all files in the directory, there shouldn't be anything left
             let mut entries = fs::read_dir(&subtitle_cache).await?;
-            println!("Cleaning subtitle cache directory: {:?}", subtitle_cache);
+            println!(
+                "[INFO] Cleaning subtitle cache directory: {:?}",
+                subtitle_cache
+            );
             while let Some(entry) = entries.next_entry().await? {
                 let path = entry.path();
                 if path.is_file() {
@@ -125,12 +128,12 @@ pub async fn clean_subtitle_cache() -> Result<(), Box<dyn Error>> {
                 }
             }
 
-            println!("Cache cleared!");
+            println!("[OK] Cache cleared!");
         } else {
-            println!("did you manually clear the cache???");
+            println!("[ERROR] did you manually clear the cache???");
         }
     } else {
-        println!("uh where is the cache...");
+        println!("[ERROR] uh where is the cache...");
     }
 
     Ok(())
@@ -141,7 +144,6 @@ pub async fn check_json(json: &Value) -> Result<(), Box<dyn Error>> {
     if json.get("success").is_none_or(|a| !a.as_bool().unwrap()) {
         return Err("Failed to fetch valid json!".into());
     } else {
-        println!("Valid json recieved!");
         return Ok(());
     }
 }
@@ -159,7 +161,6 @@ pub async fn decrypt(cyphertext: String, key: String) -> String {
         .map(|(i, &byte)| (byte ^ key.as_bytes()[i % key.len()]) as char)
         .collect()
 }
-// convert from selected title to id, could probably be neglected with tuples but this works
 pub async fn fzf_results<T: HasTitle>(movie_list: &[T]) -> Result<usize, Box<dyn Error>> {
     let mut special: bool = false;
     let readable_string = movie_list
@@ -188,7 +189,6 @@ pub async fn fzf_results<T: HasTitle>(movie_list: &[T]) -> Result<usize, Box<dyn
     if !special {
         return Ok(selected_index - 1);
     }
-    println!("Selected: {}", selected_index);
     return Ok(selected_index);
 }
 pub async fn get_movie_details(
@@ -198,7 +198,7 @@ pub async fn get_movie_details(
     imdb_id: String,
 ) -> WatchItem {
     if vidtype == "tv" {
-        println!("Returning series");
+        println!("[INFO] Found series");
         return WatchItem {
             title: movie_details
                 .get("original_name")
@@ -243,7 +243,7 @@ pub async fn get_movie_details(
             seasons: get_season_vec(movie_details).await.ok(),
         };
     }
-    println!("Returning movie");
+    println!("[INFO] Found movie");
     return WatchItem {
         title: movie_details
             .get("original_title")

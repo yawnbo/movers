@@ -23,7 +23,7 @@ pub async fn init_client(search: &str) -> Result<Vec<WatchItem>, Box<dyn Error>>
         "{}api/autocomplete/?q={}&page=1&route=search&sid=0&context=all",
         BASE_URL, search
     );
-    println!("Client initialized, fetching json from {}", json_query_url);
+    println!("[INFO] Fetching search results");
 
     let json_response: Value = client.get(json_query_url).send().await?.json().await?;
 
@@ -32,7 +32,7 @@ pub async fn init_client(search: &str) -> Result<Vec<WatchItem>, Box<dyn Error>>
     if let Some(data_array) = json_response.get("data").unwrap().as_array() {
         // TODO:
         // ugly ass print, make prettier prints please
-        println!("Fetching movie details from tmdb api...");
+        println!("[INFO] Fetching movie details from tmdb api...");
         let movie_futures = data_array
             .iter()
             .map(|movie| {
@@ -78,7 +78,7 @@ pub async fn init_client(search: &str) -> Result<Vec<WatchItem>, Box<dyn Error>>
             .collect::<Vec<_>>();
 
         let movie_results = join_all(movie_futures).await;
-        println!("tmdb api response OK");
+        println!("[INFO] tmdb api response OK");
 
         return Ok(movie_results);
     }
@@ -195,7 +195,10 @@ pub async fn get_mpegts(catflix_movie_url: String) -> Result<String, Box<dyn Err
 
     let (juice_key, data_crypted) = futures::try_join!(juice_key_future, juice_data_future)?;
 
-    println!("data: {}, Key: {}", data_crypted, juice_key);
+    println!(
+        "[INFO] Encrypted data: {}\n[INFO] Decryption Key: {}",
+        data_crypted, juice_key
+    );
     Ok(helpers::decrypt(data_crypted, juice_key).await)
 }
 
@@ -268,11 +271,11 @@ async fn get_imdb_id(
     client: &Client,
     series_id: &String,
 ) -> String {
+    // need to fetch imdb ids for subtitles
     let call_url = format!(
         "{}/tv/{}/season/{}/episode/{}/external_ids",
         TMDB_API_URL, series_id, season_number, episode_number
     );
-    println!("call_url: {}", call_url);
     let json: Value = client
         .get(call_url)
         .header("Authorization", TMDB_API_HEADER)

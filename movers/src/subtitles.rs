@@ -56,7 +56,7 @@ pub async fn get_subtitles(
         .ok_or("Failed to determine cache directory")?
         .join(BASE_SUBTITLE_CACHE);
 
-    println!("Subtitle cache directory: {:?}", sub_cache);
+    println!("[INFO] Writing subtitles to: {:?}", sub_cache);
 
     ensure_directory(&sub_cache).await?;
     let subtitles_url: String;
@@ -71,7 +71,7 @@ pub async fn get_subtitles(
             BASE_SUBTITLES_URL, episode_num, imdb_id, season_num, BASE_SUBTITLES_URL_LANG
         );
     }
-    println!("Subtitles URL: {}", subtitles_url);
+    println!("[INFO] Subtitle URL: {}", subtitles_url);
 
     let client = Client::new();
 
@@ -82,11 +82,11 @@ pub async fn get_subtitles(
         .ok_or("Subtitle data is not an array")?;
 
     if subtitles.is_empty() {
-        return Err("No subtitles found".into());
+        return Err("[ERROR] No subtitles found".into());
     }
 
     println!(
-        "Downloading {} subtitles (this might take a moment)...",
+        "[INFO] Downloading {} subtitles (this might take a moment)...",
         subtitles.len()
     );
 
@@ -113,7 +113,7 @@ pub async fn get_subtitles(
                 }
             }
             Err(e) => {
-                eprintln!("Failed to download a subtitle: {}", e);
+                eprintln!("[ERROR] Failed to download a subtitle: {}", e);
             }
         }
     }
