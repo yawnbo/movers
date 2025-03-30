@@ -89,6 +89,14 @@ pub async fn search_and_play(args: &[String]) -> Result<(), Box<dyn Error>> {
     let status = Command::new("mpv")
         .arg(mpegts_url)
         .arg(subtitle_arg)
+        // comment for more verbosity, currently the mpegts is really weird and ffmpeg
+        // can't decide on a proper packet size which leads to lots of spam. Packets also
+        // appear corrupt to ffmpeg but the video plays fine, although mpv says the time
+        // remaining is 22:59:59 which is weird.
+        //TODO:
+        // nothing was changed on my end, and from surface testing I don't think anything
+        // was changed on the cflix end, will need to look into it more, but the program
+        // still works as intented.
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .status()
@@ -155,11 +163,13 @@ pub async fn decrypt(cyphertext: String, key: String) -> String {
         .filter_map(|i| u8::from_str_radix(&cyphertext[i..i + 2], 16).ok())
         .collect();
 
-    decimal_cypher
+    let mpegts = decimal_cypher
         .iter()
         .enumerate()
         .map(|(i, &byte)| (byte ^ key.as_bytes()[i % key.len()]) as char)
-        .collect()
+        .collect();
+    println!("[INFO] Decrypted mpegts url: {}", mpegts);
+    return mpegts;
 }
 pub async fn fzf_results<T: HasTitle>(movie_list: &[T]) -> Result<usize, Box<dyn Error>> {
     let mut special: bool = false;

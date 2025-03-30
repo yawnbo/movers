@@ -1,8 +1,10 @@
 use dirs::cache_dir;
+use flate2::read::GzDecoder;
 use futures::future::join_all;
 use reqwest::Client;
 use serde_json::Value;
 use std::error::Error;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use tokio::fs as tokio_fs;
 use tokio::io::AsyncWriteExt;
@@ -18,6 +20,7 @@ async fn ensure_directory(path: &Path) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+// hotfix dont know if works
 async fn download_subtitle(
     client: &Client,
     sub_cache: &Path,
@@ -28,24 +31,29 @@ async fn download_subtitle(
         .ok_or("Missing SubFileName")?
         .as_str()
         .ok_or("SubFileName is not a string")?;
-
     let download_link = subtitle_info
         .get("SubDownloadLink")
         .ok_or("Missing SubDownloadLink")?
         .as_str()
         .ok_or("SubDownloadLink is not a string")?;
-
     let file_path = sub_cache.join(file_name);
-
     let response = client.get(download_link).send().await?;
     let content = response.bytes().await?;
 
-    let mut file = tokio_fs::File::create(&file_path).await?;
-    file.write_all(&content).await?;
+    // Check for gzip magic headers (0x1F 0x8B)
+    let final_content = if content.len() >= 2 && content[0] == 0x1F && content[1] == 0x8B {
+        let mut decoder = GzDecoder::new(&content[..]);
+        let mut decompressed = Vec::new();
+        decoder.read_to_end(&mut decompressed)?;
+        decompressed
+    } else {
+        content.to_vec()
+    };
 
+    let mut file = tokio_fs::File::create(&file_path).await?;
+    file.write_all(&final_content).await?;
     Ok(file_path)
 }
-
 pub async fn get_subtitles(
     imdb_id: String,
     series: bool,
