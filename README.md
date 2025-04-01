@@ -1,5 +1,5 @@
 # NOTICE 
-Breaks with ffmpeg 7.1+ currently because of commit 91d96dc8ddaebe0b6cb393f672085e6bfaf15a31 to avformat/hls. This creates security checks for extensions to be of the same type and thus breaks streaming. I'll try to get a workaround working but for now streaming is somewhat working.
+Currently very bad quality because of (i assume) some changes on the scraped end, (yall lame for corrupting packets) but I'll try to have it fixed. In the meantime, downloading vids will be done sooner as the output is more stable. 
 
 # Webscraper to watch movies on (WIP)
 Very basic and functioning on sticks project that is planned to be worked on, nothing is final or formal and the code is a mess that should be cleaned eventually.

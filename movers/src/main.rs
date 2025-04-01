@@ -135,7 +135,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 return Ok(());
             }
             "search" | "-S" | "--search" => {
-                match helpers::search_and_play(&args).await {
+                match helpers::get_link(&args).await {
                     Ok(()) => {
                         return Ok(());
                     }
@@ -148,6 +148,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 }
                 return Ok(());
             }
+            // will be done later
+            // "download" | "-d" | "--download" => {
+            //     match helpers::download(&args).await {
+            //         Ok(()) => {
+            //             return Ok(());
+            //         }
+            //         Err(e) => {
+            //             eprint!("Error: {}", e);
+            //             if let Err(clean_err) = helpers::clean_subtitle_cache().await {
+            //                 eprint!("Error cleaning subtitle cache: {}", clean_err);
+            //             }
+            //         }
+            //     }
+            //     return Ok(());
+            // }
             _ => {
                 continue;
             }

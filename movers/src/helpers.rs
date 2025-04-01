@@ -13,7 +13,7 @@ use crate::cflixscraping;
 use crate::subtitles;
 const SUBTITLE_CACHE_DIR: &str = "movers/subtitles/";
 
-pub async fn search_and_play(args: &[String]) -> Result<(), Box<dyn Error>> {
+pub async fn get_link(args: &[String]) -> Result<(), Box<dyn Error>> {
     let mut search_term = String::new();
     for i in 2..args.iter().len() {
         search_term.push_str(&args[i]);
