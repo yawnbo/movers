@@ -4,6 +4,7 @@ use dirs::cache_dir;
 use fzf_wrapped::Fzf;
 use serde_json::Value;
 use std::error::Error;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use tokio::fs;
 
@@ -13,7 +14,7 @@ use crate::cflixscraping;
 use crate::subtitles;
 const SUBTITLE_CACHE_DIR: &str = "movers/subtitles/";
 
-pub async fn get_link(args: &[String]) -> Result<(), Box<dyn Error>> {
+pub async fn get_link(args: &[String]) -> Result<(String, String), Box<dyn Error>> {
     let mut search_term = String::new();
     for i in 2..args.iter().len() {
         search_term.push_str(&args[i]);
@@ -84,8 +85,14 @@ pub async fn get_link(args: &[String]) -> Result<(), Box<dyn Error>> {
     let (subtitle_arg, mpegts_url) = tokio::join!(subtitle_future, mpegts_future);
     let subtitle_arg = subtitle_arg?;
     let mpegts_url = mpegts_url?;
+    return Ok((mpegts_url, subtitle_arg));
+}
 
+pub async fn play_movie(mpegts_url: String, subtitle_arg: String) -> Result<(), Box<dyn Error>> {
     println!("[INFO] Starting MPV");
+    // should make a config option with iina that just adds --mpv-* to the flag as its really an
+    // mpv wrapper. Also make sure to add the flag --keep-running so we don't clear subtitles
+    // early.
     let status = Command::new("mpv")
         .arg(mpegts_url)
         .arg(subtitle_arg)
@@ -93,7 +100,7 @@ pub async fn get_link(args: &[String]) -> Result<(), Box<dyn Error>> {
         // can't decide on a proper packet size which leads to lots of spam. Packets also
         // appear corrupt to ffmpeg but the video plays fine, although mpv says the time
         // remaining is 22:59:59 which is weird.
-        //TODO:
+        // TODO:
         // nothing was changed on my end, and from surface testing I don't think anything
         // was changed on the cflix end, will need to look into it more, but the program
         // still works as intented.
@@ -107,17 +114,10 @@ pub async fn get_link(args: &[String]) -> Result<(), Box<dyn Error>> {
     } else {
         eprintln!("[ERROR] MPV not happy: {:?}", status.code());
     }
-    // iina-cli returns a status code while playback is still active and as a result subtitles are
-    // cleared early, when using iina either comment out the cleaning of the cache and do it manually
-    // afterwards or just leave it as is
-    //
-    // TODO:
-    // iina support and cache timeout (maybe? i dont have a better idea) while using iina
     clean_subtitle_cache().await?;
 
     Ok(())
 }
-
 pub async fn clean_subtitle_cache() -> Result<(), Box<dyn Error>> {
     if let Some(cache_path) = cache_dir() {
         let subtitle_cache = cache_path.join(SUBTITLE_CACHE_DIR);
@@ -341,4 +341,26 @@ async fn get_season_vec(movie_details: Value) -> Result<Vec<Season>, Box<dyn Err
         }
     }
     return Ok(season_vec);
+}
+pub async fn ensure_directory(path: &Path) -> Result<(), Box<dyn Error>> {
+    if !path.exists() {
+        tokio::fs::create_dir_all(path).await?;
+    }
+    Ok(())
+}
+
+pub async fn download_basic(link: String) {
+    // TODO:
+    // Check ffmpeg version as the flag only works on 7.1+ as far as im aware
+    Command::new("ffmpeg")
+        .arg("-allowed_extensions")
+        .arg("ALL")
+        .arg("-extension_picky")
+        .arg("0")
+        .arg("-i")
+        .arg(link)
+        .arg("output.mp4")
+        .status()
+        .unwrap();
+    return;
 }

@@ -6,19 +6,13 @@ use serde_json::Value;
 use std::error::Error;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use tokio::fs as tokio_fs;
 use tokio::io::AsyncWriteExt;
+
+use crate::helpers;
 
 const BASE_SUBTITLES_URL: &str = "https://justaproxy.xyz/subsApi.php?version=2&getsubs=simp";
 const BASE_SUBTITLES_URL_LANG: &str = "&subkey=eng";
 const BASE_SUBTITLE_CACHE: &str = "movers/subtitles/";
-
-async fn ensure_directory(path: &Path) -> Result<(), Box<dyn Error>> {
-    if !path.exists() {
-        tokio_fs::create_dir_all(path).await?;
-    }
-    Ok(())
-}
 
 // hotfix dont know if works
 async fn download_subtitle(
@@ -40,7 +34,7 @@ async fn download_subtitle(
     let response = client.get(download_link).send().await?;
     let content = response.bytes().await?;
 
-    // Check for gzip magic headers (0x1F 0x8B)
+    // Check for gzip headers (0x1F 0x8B)
     let final_content = if content.len() >= 2 && content[0] == 0x1F && content[1] == 0x8B {
         let mut decoder = GzDecoder::new(&content[..]);
         let mut decompressed = Vec::new();
@@ -50,7 +44,7 @@ async fn download_subtitle(
         content.to_vec()
     };
 
-    let mut file = tokio_fs::File::create(&file_path).await?;
+    let mut file = tokio::fs::File::create(&file_path).await?;
     file.write_all(&final_content).await?;
     Ok(file_path)
 }
@@ -66,7 +60,7 @@ pub async fn get_subtitles(
 
     println!("[INFO] Writing subtitles to: {:?}", sub_cache);
 
-    ensure_directory(&sub_cache).await?;
+    helpers::ensure_directory(&sub_cache).await?;
     let subtitles_url: String;
     if !series {
         subtitles_url = format!(

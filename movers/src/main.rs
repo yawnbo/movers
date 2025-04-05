@@ -19,6 +19,7 @@ mod helpers;
 // TODO:
 // mod loadconfig;
 mod cflixscraping;
+mod packet_downloader;
 mod subtitles;
 
 // trait for generic fzf calling
@@ -134,35 +135,32 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 println!("{}", options);
                 return Ok(());
             }
-            "search" | "-S" | "--search" => {
-                match helpers::get_link(&args).await {
-                    Ok(()) => {
-                        return Ok(());
-                    }
-                    Err(e) => {
-                        eprint!("Erorr: {}", e);
-                        if let Err(clean_err) = helpers::clean_subtitle_cache().await {
-                            eprint!("Error cleaning subtitle cache: {}", clean_err);
-                        }
-                    }
+            "search" | "-S" | "--search" => match helpers::get_link(&args).await {
+                Ok((link, subtitle)) => {
+                    let _ = helpers::play_movie(link, subtitle).await;
+                    return Ok(());
                 }
-                return Ok(());
-            }
-            // will be done later
-            // "download" | "-d" | "--download" => {
-            //     match helpers::download(&args).await {
-            //         Ok(()) => {
-            //             return Ok(());
-            //         }
-            //         Err(e) => {
-            //             eprint!("Error: {}", e);
-            //             if let Err(clean_err) = helpers::clean_subtitle_cache().await {
-            //                 eprint!("Error cleaning subtitle cache: {}", clean_err);
-            //             }
-            //         }
-            //     }
-            //     return Ok(());
-            // }
+                Err(e) => {
+                    eprint!("Error: {}", e);
+                    if let Err(clean_err) = helpers::clean_subtitle_cache().await {
+                        eprint!("Error cleaning subtitle cache: {}", clean_err);
+                    }
+                    return Err(e);
+                }
+            },
+            "download" | "-d" | "--download" => match helpers::get_link(&args).await {
+                Ok((link, subtitle)) => {
+                    helpers::download_basic(link).await;
+                    return Ok(());
+                }
+                Err(e) => {
+                    eprint!("Error: {}", e);
+                    if let Err(clean_err) = helpers::clean_subtitle_cache().await {
+                        eprint!("Error cleaning subtitle cache: {}", clean_err);
+                    }
+                    return Err(e);
+                }
+            },
             _ => {
                 continue;
             }
