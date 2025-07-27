@@ -1,5 +1,5 @@
 # NOTICE
-haha searching is back but the libavf still can't decode the codec properly yay! Playing is half broken again with it being very stuttery and laggy while having the wrong timestamp too. See dev notes below, fix is either trim last byte of ts packet or pull another byte out of some header or something.
+This project is no longer working as the site https://catflix.su has been taken off my DNS provider and i'm not sure if it's up at all. Maybe this will come back if i feel like breaking vidlink :D
 # Webscraper to watch movies on (WIP)
 Very basic and functioning on sticks project that is planned to be worked on, nothing is final or formal and the code is a mess that should be cleaned eventually.
 
